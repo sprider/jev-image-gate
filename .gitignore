@@ -1,0 +1,51 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+dist/
+build/
+pip-wheel-metadata/
+
+# Test / lint / type caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Local eval output (regenerate with scripts/run_preflight_eval.py)
+data/eval_results.json
+
+# Generated images, local console screenshots, logs
+*.png
+*.jpg
+*.jpeg
+*.webp
+media/
+*.log
+logs/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

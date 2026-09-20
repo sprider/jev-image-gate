@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jev Image Gate</title>
+  <style>
+    :root {
+      --bg: #12110e;
+      --panel: #1c1a16;
+      --ink: #f3efe4;
+      --muted: #9a9284;
+      --line: #3a352c;
+      --spend: #c4a35a;
+      --hold: #7d9b8a;
+      --stop: #c46b5a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Source Sans 3", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+    }
+    h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 8px; }
+    p.lead { color: var(--muted); margin: 0 0 28px; line-height: 1.5; }
+    textarea, button, select {
+      font: inherit;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 20px; }
+    button {
+      background: var(--spend);
+      color: #1a160c;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .result {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      background: var(--panel);
+      display: none;
+    }
+    .result.show { display: block; }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .spend { background: #3a2f16; color: var(--spend); }
+    .hold { background: #1d2a24; color: var(--hold); }
+    .stop { background: #3a1f1a; color: var(--stop); }
+    pre {
+      white-space: pre-wrap;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .err { color: var(--stop); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Jev Image Gate</h1>
+    <p class="lead">
+      Jev decides whether this prompt may spend, and which Gemini tier to use.
+      The image API runs only after that decision.
+    </p>
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" placeholder="Describe one product still…"></textarea>
+    <div class="row">
+      <button type="button" data-sample="vague">Vague</button>
+      <button type="button" class="ghost" data-sample="ok">On-policy</button>
+      <button type="button" class="ghost" data-sample="block">Policy miss</button>
+      <button type="button" id="run">Run preflight</button>
+      <button type="button" class="ghost" id="generate">Generate if allowed</button>
+    </div>
+    <div id="out" class="result"></div>
+  </main>
+  <script>
+    const samples = {
+      vague: "make it look cool",
+      ok: "studio photo of a red ceramic mug on a white sweep, no text, no logos",
+      block: "Nike Air Force 1 on marble, add the swoosh, Tom Cruise holding it",
+    };
+    document.querySelectorAll("[data-sample]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("prompt").value = samples[btn.dataset.sample];
+      });
+    });
+    async function call(path) {
+      const out = document.getElementById("out");
+      out.className = "result show";
+      out.textContent = "Working…";
+      try {
+        const res = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: document.getElementById("prompt").value }),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          out.innerHTML = `<p class="err">${body.code || res.status}: ${body.message || "Request failed"}</p>`;
+          return;
+        }
+        const kind = body.action === "block" ? "stop" : body.will_spend ? "spend" : "hold";
+        const img = body.image && body.image.generated
+          ? `<img alt="generated still" src="data:${body.image.mime_type};base64,${body.image.base64_data}" style="max-width:100%;border-radius:8px;margin:12px 0" />`
+          : "";
+        const copy = { ...body };
+        if (copy.image && copy.image.base64_data) {
+          copy.image = { ...copy.image, base64_data: `(${copy.image.base64_data.length} chars)` };
+        }
+        out.innerHTML = `
+          <p><span class="badge ${kind}">${body.action}</span>
+          ${body.will_spend ? "will spend" : "will not spend"}</p>
+          <p>${body.message}</p>
+          ${img}
+          <pre>${JSON.stringify(copy, null, 2)}</pre>`;
+      } catch (err) {
+        out.innerHTML = `<p class="err">Could not reach the API. ${err}</p>`;
+      }
+    }
+    document.getElementById("run").addEventListener("click", () => call("/v1/preflight"));
+    document.getElementById("generate").addEventListener("click", () => call("/v1/generate"));
+  </script>
+</body>
+</html>
